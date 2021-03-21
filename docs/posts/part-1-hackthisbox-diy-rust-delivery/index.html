@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en-us">
+    
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="theme-color" content="dark">
+    <title> 1. HackTheBox DIY with Rust: Delivery | angerbrutal</title>
+    
+    
+    
+    <link rel="stylesheet" href="/sass/main.min.4e90cee935c47394b47f9cb7ffe8e3ffab18b88d82fea203918cc3f92eec5eb2.css">
+</head>
+
+    <body class="dark">
+        <nav class="navbar">
+    <div class="container">
+        <div class="flex">
+            <div>
+                <a class="brand" href="/">
+                    
+                    angerbrutal
+                    </a>
+            </div>
+            <div class="flex">
+                
+                
+            </div>
+            </div>
+    </div>
+</nav>
+        <main>
+            
+
+<div class="container">
+    <article>
+        <header class="article-header">
+            <div class="thumb">
+                <div>
+                    <h1>1. HackTheBox DIY with Rust: Delivery</h1>
+                    <div class="post-meta">
+                        <div>
+                            By angerbrutal on <time>March 17, 2021</time>
+                        </div>
+                        <div class="tags">
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+    </article>
+
+    <div class="article-post">
+    <h2>Contents</h2>
+    <nav id="TableOfContents">
+  <ul>
+    <li><a href="#introduction">Introduction</a></li>
+    <li><a href="#setup">Setup</a>
+      <ul>
+        <li><a href="#hacker-name">Hacker name</a></li>
+        <li><a href="#attack-box">Attack box</a></li>
+      </ul>
+    </li>
+    <li><a href="#first-box---delivery">First box - Delivery</a></li>
+    <li><a href="#tool-1-portscanner">Tool 1: Portscanner</a></li>
+    <li><a href="#tool-2-http-proxy">Tool 2: HTTP Proxy</a></li>
+    <li><a href="#hacking">Hacking</a>
+      <ul>
+        <li><a href="#user-flag">User flag</a></li>
+        <li><a href="#root-flag">Root flag</a></li>
+        <li><a href="#tool-3-hash-bruteforce">Tool 3: Hash bruteforce</a></li>
+      </ul>
+    </li>
+    <li><a href="#end">End</a></li>
+  </ul>
+</nav>
+    <h2 id="introduction">Introduction</h2>
+<p>This will be a series of HTB writeups, but instead of using the same boring tools as always, I will try to create my own toolset using Rust. The goal is to have fun hacking boxes and at the same time <strong>learn</strong> a new language.</p>
+<p>Some things to keep in mind:</p>
+<ol>
+<li>I suck at pentesting.<br /></li>
+<li>I suck even more at Rust programming.</li>
+</ol>
+<p>Let&rsquo;s go.</p>
+<h2 id="setup">Setup</h2>
+<h3 id="hacker-name">Hacker name</h3>
+<p>The first thing we need is a hacker name. For this purpose I highly recommend this site: <a href="https://thestoryshack.com/tools/hacker-name-generator/">https://thestoryshack.com/tools/hacker-name-generator/</a>.</p>
+<p>The first name that popped up was <em>angerbrutal</em>, nice.</p>
+<h3 id="attack-box">Attack box</h3>
+<p>I really don&rsquo;t like messing with VirtualBox and I despise a bloated parrotkalilinux. Therefore I decided to go for a $5/m DigitalOcean VPS running Ubuntu.</p>
+<h2 id="first-box---delivery">First box - Delivery</h2>
+<p>To minimize the chance I&rsquo;ll get stuck on the first box and give up on this whole thing, I&rsquo;ll choose the easiest box available: Delivery.</p>
+<p><img src="/1/delivery.png" alt=""></p>
+<p>Nice. We got an attack box and our first target. Now, we need to connect to the HTB lab&rsquo;s VPN. So do we pull up Rust and spend a few months coding a VPN client? No, we don&rsquo;t.</p>
+<p>Let&rsquo;s set some constraints. My plan here is not to create everything from scratch. What I choose to create from scratch will be based on these factors:</p>
+<ol>
+<li>Time (i.e. I won&rsquo;t spend <a href="https://fasterthanli.me/series/making-our-own-executable-packer/part-1">1+ year creating my own ELF-loader</a> (respekk))</li>
+<li>Amount of fun I think I will have doing it</li>
+<li>The points above are lies and the only constraints are my own skill level</li>
+</ol>
+<h2 id="tool-1-portscanner">Tool 1: Portscanner</h2>
+<p>Let&rsquo;s start simple and create a portscanner using a basic TCP connect <code>(SYN/SYN-ACK/ACK)</code> as its scan method.
+I&rsquo;m assuming an our first box is not deploying any advanced firewall techniques.</p>
+<p>Scanning through the Rust docs tells us the networking stuff lives in <code>std::net</code>, and our first take looks like this:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">use</span><span class="w"> </span><span class="n">std</span>::<span class="p">{</span><span class="n">net</span>::<span class="p">{</span><span class="n">SocketAddr</span><span class="p">,</span><span class="w"> </span><span class="n">IpAddr</span><span class="p">,</span><span class="w"> </span><span class="n">TcpStream</span><span class="p">,</span><span class="w"> </span><span class="n">Shutdown</span><span class="p">},</span><span class="w"> </span><span class="n">time</span>::<span class="n">Duration</span><span class="p">};</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">anyhow</span>::<span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">ports</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span><span class="p">..</span><span class="mi">100</span><span class="k">u16</span><span class="p">;</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Duration</span>::<span class="n">from_secs</span><span class="p">(</span><span class="mi">1</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#34;192.168.50.1&#34;</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">ipaddr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">IpAddr</span>::<span class="n">V4</span><span class="p">(</span><span class="n">target</span><span class="p">.</span><span class="n">parse</span><span class="p">()</span><span class="o">?</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">ports</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">saddr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">SocketAddr</span>::<span class="n">new</span><span class="p">(</span><span class="n">ipaddr</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">);</span><span class="w">
+</span><span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">TcpStream</span>::<span class="n">connect_timeout</span><span class="p">(</span><span class="o">&amp;</span><span class="n">saddr</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="p">);</span><span class="w">
+</span><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">stream</span><span class="p">)</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">res</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;OPEN {}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">);</span><span class="w">
+</span><span class="w">            </span><span class="n">stream</span><span class="p">.</span><span class="n">shutdown</span><span class="p">(</span><span class="n">Shutdown</span>::<span class="n">Both</span><span class="p">)</span><span class="o">?</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">};</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br />
+Breakdown:</p>
+<ul>
+<li>As a first attempt, this will scan ports 1-100 on my router, <code>192.168.50.1</code> (please don&rsquo;t hack), with a timeout of 1 second.</li>
+<li>While learning Rust I&rsquo;ve spent 90% if the time casting, boxing, juggling error types. So instead of taking 10 minutes to read the docs and actually learn how they work, I&rsquo;m using this excellent crate called <a href="https://docs.rs/anyhow/1.0.39/anyhow/">Anyhow</a>.</li>
+</ul>
+<p>Does it work?</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ cargo run
+   Compiling portscan v0.1.0 <span class="o">(</span>/home/angerbrutal/portscan<span class="o">)</span>
+    Finished dev <span class="o">[</span>unoptimized + debuginfo<span class="o">]</span> target<span class="o">(</span>s<span class="o">)</span> in 1.95s
+     Running <span class="sb">`</span>target/debug/portscan<span class="sb">`</span>
+OPEN <span class="m">53</span>
+OPEN <span class="m">80</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Looks promising! To be able to reuse this scanner for other boxes it would be nice to make it configurable. For this we will use the <a href="https://crates.io/crates/clap">Clap crate</a>.</p>
+<p>I would like the usage to look something like:
+<code>portscanner -t 1000 -p 1-100 192.168.50.1</code></p>
+<p>To do this, first of all we need something to represent our port range:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">struct</span> <span class="nc">PortRange</span><span class="p">(</span><span class="kt">u16</span><span class="p">,</span><span class="w"> </span><span class="kt">u16</span><span class="p">);</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">impl</span><span class="w"> </span><span class="n">PortRange</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="k">fn</span> <span class="nf">default</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">PortRange</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="n">PortRange</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span><span class="w"> </span><span class="kt">u16</span>::<span class="n">MAX</span><span class="p">)</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br />
+Here we have a newtype representing the start and end port, with a default constructor of <code>1-65535</code>.</p>
+<p>We also need to be able to create a <code>PortRange</code> from our string input:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">impl</span><span class="w"> </span><span class="n">FromStr</span><span class="w"> </span><span class="k">for</span><span class="w"> </span><span class="n">PortRange</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="k">type</span> <span class="nb">Err</span> <span class="o">=</span><span class="w"> </span><span class="nb">Box</span><span class="o">&lt;</span><span class="n">dyn</span><span class="w"> </span><span class="n">std</span>::<span class="n">error</span>::<span class="n">Error</span><span class="o">&gt;</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="k">fn</span> <span class="nf">from_str</span><span class="p">(</span><span class="n">s</span>: <span class="kp">&amp;</span><span class="kt">str</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nb">Result</span><span class="o">&lt;</span><span class="n">Self</span><span class="p">,</span><span class="w"> </span><span class="n">Self</span>::<span class="nb">Err</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">contains</span><span class="p">(</span><span class="sc">&#39;-&#39;</span><span class="p">)</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">parts</span>: <span class="nb">Vec</span><span class="o">&lt;&amp;</span><span class="kt">str</span><span class="o">&gt;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">split</span><span class="p">(</span><span class="sc">&#39;-&#39;</span><span class="p">).</span><span class="n">collect</span><span class="p">();</span><span class="w">
+</span><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="kd">let</span><span class="w"> </span><span class="p">[</span><span class="n">start</span><span class="p">,</span><span class="w"> </span><span class="n">end</span><span class="p">]</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">&amp;</span><span class="n">parts</span><span class="p">[..]</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">                </span><span class="nb">Ok</span><span class="p">(</span><span class="n">PortRange</span><span class="p">(</span><span class="n">start</span><span class="p">.</span><span class="n">parse</span>::<span class="o">&lt;</span><span class="kt">u16</span><span class="o">&gt;</span><span class="p">()</span><span class="o">?</span><span class="p">,</span><span class="w"> </span><span class="n">end</span><span class="p">.</span><span class="n">parse</span>::<span class="o">&lt;</span><span class="kt">u16</span><span class="o">&gt;</span><span class="p">()</span><span class="o">?</span><span class="p">))</span><span class="w">
+</span><span class="w">            </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">                </span><span class="nb">Err</span><span class="p">(</span><span class="n">anyhow</span>::<span class="n">anyhow</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;invalid port range&#34;</span><span class="p">).</span><span class="n">into</span><span class="p">())</span><span class="w">
+</span><span class="w">            </span><span class="p">}</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">s</span><span class="p">.</span><span class="n">parse</span>::<span class="o">&lt;</span><span class="kt">u16</span><span class="o">&gt;</span><span class="p">()</span><span class="o">?</span><span class="p">;</span><span class="w">
+</span><span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">PortRange</span><span class="p">(</span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">))</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br />
+Now we are ready to model our arguments in Clap-lang and parse it:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="cp">#[derive(Clap, Debug)]</span><span class="w">
+</span><span class="w"></span><span class="k">struct</span> <span class="nc">Opts</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="n">target</span>: <span class="nb">String</span><span class="p">,</span><span class="w">
+</span><span class="w">    </span><span class="cp">#[clap(short)]</span><span class="w">
+</span><span class="w">    </span><span class="n">ports</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="n">PortRange</span><span class="o">&gt;</span><span class="p">,</span><span class="w">
+</span><span class="w">    </span><span class="cp">#[clap(short)]</span><span class="w">
+</span><span class="w">    </span><span class="n">timeout</span>: <span class="nb">Option</span><span class="o">&lt;</span><span class="kt">u64</span><span class="o">&gt;</span><span class="p">,</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">anyhow</span>::<span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">opts</span>: <span class="nc">Opts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Opts</span>::<span class="n">parse</span><span class="p">();</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">target</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">opts</span><span class="p">.</span><span class="n">target</span><span class="p">;</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">ports</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">opts</span><span class="p">.</span><span class="n">ports</span><span class="p">.</span><span class="n">unwrap_or_else</span><span class="p">(</span><span class="n">PortRange</span>::<span class="n">default</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Duration</span>::<span class="n">from_millis</span><span class="p">(</span><span class="n">opts</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">500</span><span class="p">));</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;Scanning {} - {:?} - {}ms timeout..&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">,</span><span class="w"> </span><span class="n">ports</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="p">.</span><span class="n">as_millis</span><span class="p">());</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">ipaddr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">IpAddr</span>::<span class="n">V4</span><span class="p">(</span><span class="n">target</span><span class="p">.</span><span class="n">parse</span><span class="p">()</span><span class="o">?</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">ports</span><span class="p">.</span><span class="mi">0</span><span class="p">..</span><span class="n">ports</span><span class="p">.</span><span class="mi">1</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">knock</span><span class="p">(</span><span class="o">&amp;</span><span class="n">ipaddr</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="p">).</span><span class="n">is_ok</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;OPEN {}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">);</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">};</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br />
+Let&rsquo;s try it out with the default arguments!</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ cargo run delivery.htb
+    Finished dev <span class="o">[</span>unoptimized + debuginfo<span class="o">]</span> target<span class="o">(</span>s<span class="o">)</span> in 0.03s
+     Running <span class="sb">`</span>target/debug/portscan delivery.htb<span class="sb">`</span>
+Scanning delivery.htb - PortRange<span class="o">(</span>1, 65535<span class="o">)</span> - 500ms timeout..
+Error: invalid IP address syntax
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Ah, it&rsquo;s telling us that <code>delivery.htb</code> is not a valid IP address. I agree. Going back to Rust docs it looks like the trait <a href="https://doc.rust-lang.org/std/net/trait.ToSocketAddrs.html#tymethod.to_socket_addrs">std::net::ToSocketAddrs</a> is exactly what we need to resolve it.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span><span class="lnt">6
+</span><span class="lnt">7
+</span><span class="lnt">8
+</span><span class="lnt">9
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">fn</span> <span class="nf">resolve_target</span><span class="p">(</span><span class="n">target</span>: <span class="nb">String</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">anyhow</span>::<span class="nb">Result</span><span class="o">&lt;</span><span class="n">IpAddr</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="n">target</span><span class="p">.</span><span class="n">parse</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="nb">Ok</span><span class="p">(</span><span class="n">ip</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(</span><span class="n">ip</span><span class="p">),</span><span class="w">
+</span><span class="w">        </span><span class="nb">Err</span><span class="p">(</span><span class="n">_</span><span class="p">)</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">fakesocketaddr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">format</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;{}:80&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">target</span><span class="p">);</span><span class="w">
+</span><span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">fakesocketaddr</span><span class="p">.</span><span class="n">to_socket_addrs</span><span class="p">()</span><span class="o">?</span><span class="p">.</span><span class="n">next</span><span class="p">().</span><span class="n">unwrap</span><span class="p">().</span><span class="n">ip</span><span class="p">())</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br />
+Breakdown:</p>
+<ul>
+<li>If we successfully parsed the string to an <code>IpAddr</code> we are good.</li>
+<li><code>to_socket_addrs</code> expect the string to be a socket address, i.e. have a port bound to it. Let&rsquo;s just do what it says and create a temp address with port 80.</li>
+<li>It also returns an Iterator on all the resolved addresses, we will cross our fingers and always take the first.</li>
+</ul>
+<p>Running it again:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ cargo run delivery.htb
+    Compiling portscan v0.1.0 <span class="o">(</span>/home/anon/portscan<span class="o">)</span> 
+     Finished dev <span class="o">[</span>unoptimized + debuginfo<span class="o">]</span> target<span class="o">(</span>s<span class="o">)</span> in 0.04s
+      Running <span class="sb">`</span>target/debug/portscan delivery.htb<span class="sb">`</span>
+Scanning 10.10.10.222 - PortRange<span class="o">(</span>1, 65535<span class="o">)</span> - 500ms timeout..
+
+OPEN <span class="m">22</span>
+OPEN <span class="m">80</span>
+OPEN <span class="m">8065</span>
+^C
+cargo run delivery.htb  0.61s user 0.95s system 0% cpu 5:38.19 tota
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Seems to work! Does is? Comparing it to nmap&rsquo;s result could be a good idea:</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ nmap -p- -sT delivery.htb
+Starting Nmap 7.80 <span class="o">(</span> https://nmap.org <span class="o">)</span> at 2021-03-20 14:58 UTC
+Nmap scan report <span class="k">for</span> delivery.htb <span class="o">(</span>10.10.10.222<span class="o">)</span>
+Host is up <span class="o">(</span>0.015s latency<span class="o">)</span>.
+Not shown: <span class="m">65532</span> closed ports
+PORT     STATE SERVICE
+22/tcp   open  ssh
+80/tcp   open  http
+8065/tcp open  unknown
+
+Nmap <span class="k">done</span>: <span class="m">1</span> IP address <span class="o">(</span><span class="m">1</span> host up<span class="o">)</span> scanned in 8.58 seconds
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Nice! However, my portscanner is terribly slow compared to nmap. In fact, I got tired of waiting and ^C:d mine.
+Iterating and scanning 65535 in a sequence takes some time. How about doing it in parallell?</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span><span class="lnt">33
+</span><span class="lnt">34
+</span><span class="lnt">35
+</span><span class="lnt">36
+</span><span class="lnt">37
+</span><span class="lnt">38
+</span><span class="lnt">39
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">const</span><span class="w"> </span><span class="n">MAX_THREADS</span>: <span class="kt">usize</span> <span class="o">=</span><span class="w"> </span><span class="mi">3</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="o">&lt;</span><span class="n">snip</span><span class="o">&gt;</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">start_thread</span><span class="p">(</span><span class="n">ip</span>: <span class="nc">IpAddr</span><span class="p">,</span><span class="w"> </span><span class="n">ports</span>: <span class="nb">Vec</span><span class="o">&lt;</span><span class="kt">u16</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span>: <span class="nc">Duration</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nc">thread</span>::<span class="n">JoinHandle</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="n">thread</span>::<span class="n">spawn</span><span class="p">(</span><span class="k">move</span><span class="w"> </span><span class="o">||</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">ports</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">knock</span><span class="p">(</span><span class="n">ip</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="p">).</span><span class="n">is_ok</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">                </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;OPEN {}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">);</span><span class="w">
+</span><span class="w">            </span><span class="p">}</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">})</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">anyhow</span>::<span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">opts</span>: <span class="nc">Opts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Opts</span>::<span class="n">parse</span><span class="p">();</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">target_ip</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">resolve_target</span><span class="p">(</span><span class="n">opts</span><span class="p">.</span><span class="n">target</span><span class="p">)</span><span class="o">?</span><span class="p">;</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">ports</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">opts</span><span class="p">.</span><span class="n">ports</span><span class="p">.</span><span class="n">unwrap_or_else</span><span class="p">(</span><span class="n">PortRange</span>::<span class="n">default</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">timeout</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Duration</span>::<span class="n">from_millis</span><span class="p">(</span><span class="n">opts</span><span class="p">.</span><span class="n">timeout</span><span class="p">.</span><span class="n">unwrap_or</span><span class="p">(</span><span class="mi">500</span><span class="p">));</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;Scanning {} - {}-{} - {}ms timeout..\n&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">target_ip</span><span class="p">,</span><span class="w"> </span><span class="n">ports</span><span class="p">.</span><span class="mf">0.</span><span class="n">first</span><span class="p">().</span><span class="n">unwrap</span><span class="p">(),</span><span class="w"> </span><span class="n">ports</span><span class="p">.</span><span class="mf">0.</span><span class="n">last</span><span class="p">().</span><span class="n">unwrap</span><span class="p">(),</span><span class="w"> </span><span class="n">timeout</span><span class="p">.</span><span class="n">as_millis</span><span class="p">());</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="k">if</span><span class="w"> </span><span class="n">ports</span><span class="p">.</span><span class="mf">0.</span><span class="n">len</span><span class="p">()</span><span class="w"> </span><span class="o">&lt;</span><span class="w"> </span><span class="n">MAX_THREADS</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="k">for</span><span class="w"> </span><span class="n">port</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="n">ports</span><span class="p">.</span><span class="mi">0</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="k">if</span><span class="w"> </span><span class="n">knock</span><span class="p">(</span><span class="n">target_ip</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">,</span><span class="w"> </span><span class="n">timeout</span><span class="p">).</span><span class="n">is_ok</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">                </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;OPEN {}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">port</span><span class="p">);</span><span class="w">
+</span><span class="w">            </span><span class="p">}</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">else</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="n">ports</span><span class="p">.</span><span class="mf">0.</span><span class="n">chunks</span><span class="p">(</span><span class="n">MAX_THREADS</span><span class="p">)</span><span class="w">
+</span><span class="w">            </span><span class="p">.</span><span class="n">map</span><span class="p">(</span><span class="o">|</span><span class="n">ports</span><span class="o">|</span><span class="w"> </span><span class="n">start_thread</span><span class="p">(</span><span class="n">target_ip</span><span class="p">,</span><span class="w"> </span><span class="n">ports</span><span class="p">.</span><span class="n">to_vec</span><span class="p">(),</span><span class="w"> </span><span class="n">timeout</span><span class="p">))</span><span class="w">
+</span><span class="w">            </span><span class="p">.</span><span class="n">collect</span>::<span class="o">&lt;</span><span class="nb">Vec</span><span class="o">&lt;</span><span class="n">JoinHandle</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;&gt;&gt;</span><span class="p">()</span><span class="w">
+</span><span class="w">            </span><span class="p">.</span><span class="n">into_iter</span><span class="p">()</span><span class="w">
+</span><span class="w">            </span><span class="p">.</span><span class="n">for_each</span><span class="p">(</span><span class="o">|</span><span class="n">h</span><span class="o">|</span><span class="w"> </span><span class="n">h</span><span class="p">.</span><span class="n">join</span><span class="p">().</span><span class="n">unwrap</span><span class="p">());</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br /></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ <span class="nb">time</span> cargo run delivery.htb
+   Compiling portscan v0.1.0 <span class="o">(</span>/home/anon/portscan<span class="o">)</span>
+    Finished dev <span class="o">[</span>unoptimized + debuginfo<span class="o">]</span> target<span class="o">(</span>s<span class="o">)</span> in 1.99s
+     Running <span class="sb">`</span>target/debug/portscan delivery.htb<span class="sb">`</span>
+Scanning 10.10.10.222 - 1-65534 - 500ms timeout..
+
+OPEN <span class="m">22</span>
+OPEN <span class="m">80</span>
+OPEN <span class="m">8065</span>
+cargo run delivery.htb  1.95s user 0.49s system 94% cpu 2.571 total
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Even faster than nmap! And also time for a reminder: <strong>Everything I do here is extremely naive and stupid.</strong> nmap probably includes a lot of fancy rate limiting and all that, for good reasons! Flooding a network like this is never good and will trigger even the stupidest firewall.</p>
+<p>That concludes the portscanner. Hopefully we will have to revisit it and implement some sweet raw sockets for future boxes.</p>
+<h2 id="tool-2-http-proxy">Tool 2: HTTP Proxy</h2>
+<p>Now when we know that Delivery got ports 22, 80, 8065 open we can start doing some real work.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ curl delivery.htb:8065
+&lt;!doctype html&gt;&lt;html <span class="nv">lang</span><span class="o">=</span><span class="s2">&#34;en&#34;</span>&gt;&lt;head&gt;&lt;meta <span class="nv">charset</span><span class="o">=</span><span class="s2">&#34;utf-8&#34;</span>&gt;&lt;meta <span class="nv">name</span><span class="o">=</span><span class="s2">&#34;viewport&#34;</span> <span class="nv">content</span><span class="o">=</span><span class="s2">&#34;width=device-width,initial-scale=1,maximum-scale=1,user-scalable=0&#34;</span>&gt;&lt;meta <span class="nv">name</span><span class="o">=</span><span class="s2">&#34;robots&#34;</span> <span class="nv">content</span><span class="o">=</span><span class="s2">&#34;noindex, nofollow&#34;</span>&gt;&lt;meta <span class="nv">name</span><span class="o">=</span><span class="s2">&#34;referrer&#34;</span> <span class="nv">content</span><span class="o">=</span><span class="s2">&#34;no-referrer&#34;</span>&gt;&lt;title&gt;Mattermost&lt;/title&gt;&lt;meta <span class="nv">name</span><span class="o">=</span><span class="s2">&#34;mobile-web-app-capable&#34;</span> <span class="nv">content</span><span class="o">=</span><span class="s2">&#34;yes&#34;</span>&gt;&lt;meta <span class="nv">name</span><span class="o">=</span><span class="s2">&#34;application-name&#34;</span> <span class="nv">content</span><span class="o">=</span><span class="s2">&#34;Mattermost&#34;</span>&gt;&lt;meta <span class="nv">name</span><span class="o">=</span><span class="s2">&#34;format-detection&#34;</span> <span class="nv">content</span><span class="o">=</span><span class="s2">&#34;telephone=no&#34;</span>&gt;&lt;link <span class="nv">rel</span><span class="o">=</span><span class="s2">&#34;icon&#34;</span> <span class="nv">type</span><span class="o">=</span><span class="s2">&#34;image/png&#34;</span> <span class="nv">href</span><span class="o">=</span><span class="s2">&#34;/static/images/favicon/favicon-default-16x16.png&#34;</span> <span class="nv">sizes</span><span class="o">=</span><span class="s2">&#34;16x16&#34;</span>&gt;&lt;link <span class="nv">rel</span><span class="o">=</span><span class="s2">&#34;icon&#34;</span> <span class="nv">type</span><span class="o">=</span><span class="s2">&#34;image/png&#34;</span> <span class="nv">href</span><span class="o">=</span><span class="s2">&#34;/static/images/favicon/favicon-default-24x24.png&#34;</span> <span class="nv">sizes</span><span class="o">=</span><span class="s2">&#34;24x24&#34;</span>&gt;&lt;link <span class="nv">rel</span><span class="o">=</span><span class="s2">&#34;icon&#34;</span> <span class="nv">type</span><span class="o">=</span><span class="s2">&#34;image/png&#34;</span> <span class="nv">href</span><span class="o">=</span><span class="s2">&#34;/static/images/favicon/favicon-default-32x32.png&#34;</span> <span class="nv">sizes</span><span class="o">=</span><span class="s2">&#34;32x32&#34;</span>&gt;&lt;link <span class="nv">rel</span><span class="o">=</span><span class="s2">&#34;icon&#34;</span> <span class="nv">type</span><span class="o">=</span><span class="s2">&#34;image/png&#34;</span> <span class="nv">href</span><span class="o">=</span><span class="s2">&#34;/static/images/favicon/favicon-default-64x64.png&#34;</span> <span class="nv">sizes</span><span class="o">=</span><span class="s2">&#34;64x64&#34;</span>&gt;&lt;link <span class="nv">rel</span><span class="o">=</span><span class="s2">&#34;icon&#34;</span> <span class="nv">type</span><span class="o">=</span><span class="s2">&#34;image/png&#34;</span> <span class="nv">href</span><span class="o">=</span><span class="s2">&#34;/static/images/favicon/favicon-default-96x96.png&#34;</span> <span class="nv">sizes</span><span class="o">=</span><span class="s2">&#34;96x96&#34;</span>&gt;&lt;link <span class="nv">rel</span><span class="o">=</span><span class="s2">&#34;stylesheet&#34;</span> <span class="nv">class</span><span class="o">=</span><span class="s2">&#34;code_theme&#34;</span>&gt;&lt;style&gt;.error-screen<span class="o">{</span>font-family:<span class="s1">&#39;Helvetica Neue&#39;</span>,Helvetica,Arial,sans-serif<span class="p">;</span>padding-top:50px<span class="p">;</span>max-width:750px<span class="p">;</span>font-size:14px<span class="p">;</span>color:#333<span class="p">;</span>margin:auto<span class="p">;</span>display:none<span class="p">;</span>line-height:1.5<span class="o">}</span>.error-screen h2<span class="o">{</span>font-size:30px<span class="p">;</span>font-weight:400<span class="p">;</span>line-height:1.2<span class="o">}</span>.error-screen ul<span class="o">{</span>padding-left:15px<span class="p">;</span>line-height:1.7<span class="p">;</span>margin-top:0<span class="p">;</span>margin-bottom:10px<span class="o">}</span>.error-screen hr<span class="o">{</span>color:#ddd<span class="p">;</span>margin-top:20px<span class="p">;</span>margin-bottom:20px<span class="p">;</span>border:0<span class="p">;</span>border-top:1px solid <span class="c1">#eee}.error-screen-visible{display:block}&lt;/style&gt;&lt;meta http-equiv=&#34;Content-Security-Policy&#34; content=&#34;script-src &#39;self&#39; cdn.rudderlabs.com/ js.stripe.com/v3&#34;&gt;&lt;link href=&#34;/static/main.9ef911c6437f8b1ded00.css&#34; rel=&#34;stylesheet&#34;&gt;&lt;script src=&#34;/static/main.ec4172de311a84144f07.js&#34;&gt;&lt;/script&gt;&lt;meta name=&#34;apple-mobile-web-app-title&#34; content=&#34;Mattermost&#34; /&gt;&lt;meta name=&#34;apple-mobile-web-app-capable&#34; content=&#34;yes&#34; /&gt;&lt;meta name=&#34;apple-mobile-web-app-status-bar-style&#34; content=&#34;default&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;76x76&#34; href=&#34;/static/icon_76x76.png&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;72x72&#34; href=&#34;/static/icon_72x72.png&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;60x60&#34; href=&#34;/static/icon_60x60.png&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;57x57&#34; href=&#34;/static/icon_57x57.png&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;152x152&#34; href=&#34;/static/icon_152x152.png&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;144x144&#34; href=&#34;/static/icon_144x144.png&#34; /&gt;&lt;link rel=&#34;apple-touch-icon&#34; sizes=&#34;120x120&#34; href=&#34;/static/icon_120x120.png&#34; /&gt;&lt;link rel=&#34;manifest&#34; href=&#34;/static/manifest.json&#34; /&gt;&lt;/head&gt;&lt;body class=&#34;font--open_sans enable-animations&#34;&gt;&lt;div id=&#34;root&#34;&gt;&lt;div class=&#34;error-screen&#34;&gt;&lt;h2&gt;Cannot connect to Mattermost&lt;/h2&gt;&lt;hr/&gt;&lt;p&gt;We&#39;re having trouble connecting to Mattermost. If refreshing this page (Ctrl+R or Command+R) does not work, please verify that your computer is connected to the internet.&lt;/p&gt;&lt;br/&gt;&lt;/div&gt;&lt;div class=&#34;loading-screen&#34; style=&#34;position:relative&#34;&gt;&lt;div class=&#34;loading__content&#34;&gt;&lt;div class=&#34;round round-1&#34;&gt;&lt;/div&gt;&lt;div class=&#34;round round-2&#34;&gt;&lt;/div&gt;&lt;div class=&#34;round round-3&#34;&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;/div&gt;&lt;div id=&#34;root-portal&#34;&gt;&lt;/div&gt;&lt;noscript&gt;To use Mattermost, please enable JavaScript.&lt;/noscript&gt;&lt;/body&gt;&lt;/html&gt;%</span>
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Hm.. For enumeration and exploring purposes it would be nice to render this in a browser.</p>
+<p>Currently I&rsquo;m accessing the HTB lab like this:</p>
+<pre><code>My machine &lt;SSH&gt; Headless Ubuntu VPS &lt;VPN&gt; HTB
+</code></pre><p>Since my VPS is headless I&rsquo;m gonna need to run the browser on my own machine, and to access the lab I need to create a HTTP proxy server running on my VPS.</p>
+<p>Now you might be thinking: &ldquo;ROFL this guy actually gonna access HTB on his own machine without any virtualization&rdquo;. That&rsquo;s correct. If anyone is sitting on a Firefox 0-day and decides to deploy it on a HTB box, please take all my files.</p>
+<p>So, what&rsquo;s an HTTP proxy?  It&rsquo;s basically a HTTP client and a server at the same time right? <a href="https://crates.io/crates/hyper">Hyper</a> seems like a hyped crate for this.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span><span class="lnt">15
+</span><span class="lnt">16
+</span><span class="lnt">17
+</span><span class="lnt">18
+</span><span class="lnt">19
+</span><span class="lnt">20
+</span><span class="lnt">21
+</span><span class="lnt">22
+</span><span class="lnt">23
+</span><span class="lnt">24
+</span><span class="lnt">25
+</span><span class="lnt">26
+</span><span class="lnt">27
+</span><span class="lnt">28
+</span><span class="lnt">29
+</span><span class="lnt">30
+</span><span class="lnt">31
+</span><span class="lnt">32
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">use</span><span class="w"> </span><span class="n">hyper</span>::<span class="p">{</span><span class="n">Client</span><span class="p">,</span><span class="w"> </span><span class="n">Body</span><span class="p">,</span><span class="w"> </span><span class="n">Request</span><span class="p">,</span><span class="w"> </span><span class="n">Response</span><span class="p">,</span><span class="w"> </span><span class="n">Server</span><span class="p">,</span><span class="w"> </span><span class="n">Method</span><span class="p">,</span><span class="w"> </span><span class="n">service</span>::<span class="p">{</span><span class="n">make_service_fn</span><span class="p">,</span><span class="w"> </span><span class="n">service_fn</span><span class="p">}};</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="k">async</span><span class="w"> </span><span class="k">fn</span> <span class="nf">handle_request</span><span class="p">(</span><span class="n">req</span>: <span class="nc">Request</span><span class="o">&lt;</span><span class="n">Body</span><span class="o">&gt;</span><span class="p">)</span><span class="w"> </span>-&gt; <span class="nb">Result</span><span class="o">&lt;</span><span class="n">Response</span><span class="o">&lt;</span><span class="n">Body</span><span class="o">&gt;</span><span class="p">,</span><span class="w"> </span><span class="n">hyper</span>::<span class="n">Error</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="k">match</span><span class="w"> </span><span class="o">*</span><span class="n">req</span><span class="p">.</span><span class="n">method</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="n">Method</span>::<span class="n">CONNECT</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="c1">// Not supported
+</span><span class="c1"></span><span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">Response</span>::<span class="n">default</span><span class="p">())</span><span class="w">
+</span><span class="w">        </span><span class="p">},</span><span class="w">
+</span><span class="w">        </span><span class="n">_</span><span class="w"> </span><span class="o">=&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">method</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">req</span><span class="p">.</span><span class="n">method</span><span class="p">().</span><span class="n">clone</span><span class="p">();</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">uri</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">req</span><span class="p">.</span><span class="n">uri</span><span class="p">().</span><span class="n">clone</span><span class="p">();</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">client</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Client</span>::<span class="n">new</span><span class="p">();</span><span class="w">
+</span><span class="w">            </span><span class="kd">let</span><span class="w"> </span><span class="n">resp</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">client</span><span class="p">.</span><span class="n">request</span><span class="p">(</span><span class="n">req</span><span class="p">).</span><span class="k">await</span><span class="o">?</span><span class="p">;</span><span class="w">
+</span><span class="w">            </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;{} {}\n\t -&gt; {}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">method</span><span class="p">,</span><span class="w"> </span><span class="n">uri</span><span class="p">,</span><span class="w"> </span><span class="n">resp</span><span class="p">.</span><span class="n">status</span><span class="p">());</span><span class="w">
+</span><span class="w">            </span><span class="nb">Ok</span><span class="p">(</span><span class="n">resp</span><span class="p">)</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span><span class="w">
+</span><span class="w"></span><span class="cp">#[tokio::main]</span><span class="w">
+</span><span class="w"></span><span class="k">async</span><span class="w"> </span><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">anyhow</span>::<span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">addr</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">([</span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">,</span><span class="w"> </span><span class="mi">0</span><span class="p">],</span><span class="w"> </span><span class="mi">666</span><span class="p">).</span><span class="n">into</span><span class="p">();</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">service</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">make_service_fn</span><span class="p">(</span><span class="o">|</span><span class="n">_</span><span class="o">|</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">{</span><span class="w"> 
+</span><span class="w">        </span><span class="nb">Ok</span>::<span class="o">&lt;</span><span class="n">_</span><span class="p">,</span><span class="w"> </span><span class="n">hyper</span>::<span class="n">Error</span><span class="o">&gt;</span><span class="p">(</span><span class="n">service_fn</span><span class="p">(</span><span class="n">handle_request</span><span class="p">))</span><span class="w"> 
+</span><span class="w">    </span><span class="p">});</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">Server</span>::<span class="n">bind</span><span class="p">(</span><span class="o">&amp;</span><span class="n">addr</span><span class="p">).</span><span class="n">serve</span><span class="p">(</span><span class="n">service</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;Listening on http://{}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">addr</span><span class="p">);</span><span class="w">
+</span><span class="w">    </span><span class="n">server</span><span class="p">.</span><span class="k">await</span><span class="o">?</span><span class="p">;</span><span class="w">
+</span><span class="w">
+</span><span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br />
+That&rsquo;s it!</p>
+<ul>
+<li>HTTP server listing on port 666</li>
+<li>Forwards any request to the destination and returns the response</li>
+<li>For now, we are ignoring HTTPS (<code>CONNECT</code>), although we might need to implement that for future boxes.</li>
+</ul>
+<p>Besides being pointless, we might actually make some use for this HTTP proxy by inspecting and modifying requests later.</p>
+<h2 id="hacking">Hacking</h2>
+<p>After configuring Firefox to use HTTP proxy <code>[MY.VPS.IP]:666</code> and visiting <code>http://delivary.htb</code> we are presented with:</p>
+<p><img src="/1/2.png" alt=""></p>
+<p>A lot of giveaways here:</p>
+<ul>
+<li>There&rsquo;s a helpdesk on <code>helpdesk.delivery.htb</code>, better put that in <code>/etc/hosts</code>.</li>
+<li><code>delivery.htb:8065</code> is running a MatterMost server, whatever that is.</li>
+<li>We somehow need to get our hands on a <code>@delivty.htb</code> email address.</li>
+</ul>
+<p>Starting with the helpdesk, it seems like we can create tickets as an unauthenticated user.
+<img src="/1/h2.png" alt=""></p>
+<p>Aha! Our ticket is assigned a <code>@delivery.htb</code> email address, perfect. However, when trying to view the ticket information by providing the email we used when creating the ticket and the ticker number, we get an error saying the email address is not verified.
+<img src="/1/foo.png" alt=""></p>
+<p>What if we create another ticket using the <code>@delivery.htb</code> email we received? Perhaps <code>*@delivery.htb</code> are verified by default?
+<img src="/1/h3.png" alt="">
+<img src="/1/h4.png" alt=""></p>
+<p>Yep! So now we got access to a <code>@delivery.htb</code> email and can read its inbox. Using this we might be able to create a new account on the MatterMost server.</p>
+<p><img src="/1/h5.png" alt="">
+<img src="/1/h6.png" alt="">
+<img src="/1/m1.png" alt=""></p>
+<p>We&rsquo;re in! And wow, they&rsquo;re really giving away information here. We can now login as the admin of the ticket system.
+<img src="/1/m2.png" alt=""></p>
+<p>After poking around for a while here without finding anything interesting (besides <code>somebloke</code> trying to upload a reverse shell <code>.exe</code>) I decided to try the same credentials for SSH.</p>
+<p><img src="/1/m4.png" alt=""></p>
+<h3 id="user-flag">User flag</h3>
+<p><img src="/1/s1.png" alt=""></p>
+<h3 id="root-flag">Root flag</h3>
+<p>The <code>root</code> user in MatterMost chat mentioned something hashes and reusing passwords. Maybe we can find the hash for this user?</p>
+<p>Some <code>find</code>&rsquo;s later and I found the MatterMost installation and a configuration file:
+<img src="/1/s2.png" alt=""></p>
+<p>More hints! They are actually telling us what we need to do in the password to the database.
+<img src="/1/s3.png" alt=""></p>
+<p>And here is the hash for the root user, which according to the chat before should be a variation of <code>PleaseSubscribe!</code>.</p>
+<h3 id="tool-3-hash-bruteforce">Tool 3: Hash bruteforce</h3>
+<p>Here I got extremely lucky and found the correct password by accident while testing the setup of my bruteforce script.</p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt"> 1
+</span><span class="lnt"> 2
+</span><span class="lnt"> 3
+</span><span class="lnt"> 4
+</span><span class="lnt"> 5
+</span><span class="lnt"> 6
+</span><span class="lnt"> 7
+</span><span class="lnt"> 8
+</span><span class="lnt"> 9
+</span><span class="lnt">10
+</span><span class="lnt">11
+</span><span class="lnt">12
+</span><span class="lnt">13
+</span><span class="lnt">14
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-rust" data-lang="rust"><span class="k">fn</span> <span class="nf">main</span><span class="p">()</span><span class="w"> </span>-&gt; <span class="nc">anyhow</span>::<span class="nb">Result</span><span class="o">&lt;</span><span class="p">()</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">hash</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#34;$2a$10$VM6EeymRxJ29r8Wjkr8Dtev0O.1STWb4.4ScG.anuu7v0EFJwgjjO&#34;</span><span class="p">;</span><span class="w">
+</span><span class="w">    </span><span class="kd">let</span><span class="w"> </span><span class="n">known</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s">&#34;PleaseSubscribe!&#34;</span><span class="p">;</span><span class="w">
+</span><span class="w">    
+</span><span class="w">    </span><span class="k">for</span><span class="w"> </span><span class="n">n</span><span class="w"> </span><span class="k">in</span><span class="w"> </span><span class="mi">0</span><span class="p">..</span><span class="o">=</span><span class="mi">100</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">        </span><span class="kd">let</span><span class="w"> </span><span class="n">passwd</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="n">known</span><span class="p">.</span><span class="n">to_owned</span><span class="p">()</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="o">&amp;</span><span class="n">n</span><span class="p">.</span><span class="n">to_string</span><span class="p">();</span><span class="w">
+</span><span class="w">        </span><span class="k">if</span><span class="w"> </span><span class="n">bcrypt</span>::<span class="n">verify</span><span class="p">(</span><span class="o">&amp;</span><span class="n">passwd</span><span class="p">,</span><span class="w"> </span><span class="o">&amp;</span><span class="n">hash</span><span class="p">).</span><span class="n">unwrap</span><span class="p">()</span><span class="w"> </span><span class="p">{</span><span class="w">
+</span><span class="w">            </span><span class="n">println</span><span class="o">!</span><span class="p">(</span><span class="s">&#34;PASSWORD: {}&#34;</span><span class="p">,</span><span class="w"> </span><span class="n">passwd</span><span class="p">);</span><span class="w">
+</span><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nb">Ok</span><span class="p">(());</span><span class="w">
+</span><span class="w">        </span><span class="p">}</span><span class="w">
+</span><span class="w">    </span><span class="p">}</span><span class="w">
+</span><span class="w">    
+</span><span class="w">    </span><span class="nb">Ok</span><span class="p">(())</span><span class="w">
+</span><span class="w"></span><span class="p">}</span><span class="w">
+</span></code></pre></td></tr></table>
+</div>
+</div><p><br /></p>
+<div class="highlight"><div class="chroma">
+<table class="lntable"><tr><td class="lntd">
+<pre class="chroma"><code><span class="lnt">1
+</span><span class="lnt">2
+</span><span class="lnt">3
+</span><span class="lnt">4
+</span><span class="lnt">5
+</span></code></pre></td>
+<td class="lntd">
+<pre class="chroma"><code class="language-shell" data-lang="shell">$ cargo run
+   Compiling hashcrack v0.1.0 <span class="o">(</span>/home/anon/hashcrack<span class="o">)</span>
+    Finished dev <span class="o">[</span>unoptimized + debuginfo<span class="o">]</span> target<span class="o">(</span>s<span class="o">)</span> in 1.80s
+     Running <span class="sb">`</span>target/debug/hashcrack<span class="sb">`</span>
+PASSWORD: PleaseSubscribe!21
+</code></pre></td></tr></table>
+</div>
+</div><p><br />
+Oh well. Maybe next time we&rsquo;ll need to come back here and generate some fancy permutations and stuff. Logging in with <code>root:PleaseSubscribe!21</code> gives us the root flag.</p>
+<h2 id="end">End</h2>
+<p>That was pretty easy. Hopefully next box will require us to write some custom exploits.</p>
+
+    </div>
+</div>
+
+<div class="container">
+    
+    <nav class="flex container suggested">
+        
+        
+        
+    </nav>
+    
+</div>
+</main>
+
+
+        </main>
+        <footer class="footer flex">
+    <section class="container">
+        <nav class="footer-links">
+            
+            <a href="/index.xml">RSS</a>
+            
+            <img style="visibility: hidden" src="https://visitor-badge.glitch.me/badge?page_id=https%3a%2f%2fangerbrutal.github.io%2fposts%2fpart-1-hackthisbox-diy-rust-delivery%2f" alt="Views"/>
+        </nav>
+    </section>
+    
+    <script async src="/js/features.min.cab465ace0d6a5b280dd226cf4cabd0dd57e1fa5762ece89f4465b12b83df82a.js"></script>
+</footer>
+    </body>
+</html>

@@ -1,0 +1,5 @@
+#!/bin/bash
+set -e
+hugo
+git add -A; git commit -am "yep";
+git push
